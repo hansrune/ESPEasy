@@ -239,31 +239,6 @@ bool flashChipVendorPuya() {
  Memory management
 \*********************************************************************************************/
 
-// clean up tcp connections that are in TIME_WAIT status, to conserve memory
-// In future versions of WiFiClient it should be possible to call abort(), but
-// this feature is not in all upstream versions yet.
-// See https://github.com/esp8266/Arduino/issues/1923
-// and https://github.com/letscontrolit/ESPEasy/issues/253
-#if defined(ESP8266)
-  #include <md5.h>
-#endif
-#if defined(ESP8266)
-
-struct tcp_pcb;
-extern struct tcp_pcb* tcp_tw_pcbs;
-extern "C" void tcp_abort (struct tcp_pcb* pcb);
-
-void tcpCleanup()
-{
-
-     while(tcp_tw_pcbs!=NULL)
-    {
-      tcp_abort(tcp_tw_pcbs);
-    }
-
- }
-#endif
-
 
 // For keeping track of 'cont' stack
 // See: https://github.com/esp8266/Arduino/issues/2557
@@ -1543,7 +1518,7 @@ void prepareShutdown()
   saveUserVarToRTC();
   SPIFFS.end();
   delay(100); // give the node time to flush all before reboot or sleep
-  now();
+  node_time.now();
   saveToRTC();
 }
 
@@ -1951,6 +1926,7 @@ void transformValue(
             value = logicVal == 0 ? "0" : "1";
             break;
           case 'D' ://Dx.y min 'x' digits zero filled & 'y' decimal fixed digits
+          case 'd' ://like above but with spaces padding
             {
               int x;
               int y;
@@ -1988,7 +1964,7 @@ void transformValue(
                 indexDot = value.length();
               }              
               for (byte f = 0; f < (x - indexDot); f++) {
-                value = "0" + value;
+                value = (tempValueFormat[0]=='d'? ' ' : '0') + value;
               }
               break;
             }
@@ -2486,9 +2462,9 @@ void SendValueLogger(taskIndex_t TaskIndex)
       LoadTaskSettings(TaskIndex);
       for (byte varNr = 0; varNr < Device[DeviceIndex].ValueCount; varNr++)
       {
-        logger += getDateString('-');
+        logger += node_time.getDateString('-');
         logger += ' ';
-        logger += getTimeString(':');
+        logger += node_time.getTimeString(':');
         logger += ',';
         logger += Settings.Unit;
         logger += ',';
@@ -2730,7 +2706,7 @@ void ArduinoOTAInit()
   checkRAM(F("ArduinoOTAInit"));
 
   ArduinoOTA.setPort(ARDUINO_OTA_PORT);
-  ArduinoOTA.setHostname(Settings.Name);
+  ArduinoOTA.setHostname(Settings.getHostname().c_str());
   if (SecuritySettings.Password[0]!=0)
     ArduinoOTA.setPassword(SecuritySettings.Password);
 
